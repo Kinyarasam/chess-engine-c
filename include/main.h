@@ -24,6 +24,7 @@ typedef enum {
 typedef struct {
     PieceType type;
     PieceColor color;
+    SDL_Texture* texture;
 } Piece;
 
 typedef struct {
@@ -40,6 +41,19 @@ typedef struct {
     SDL_bool gameIsActive;
     Cell board[BOARD_SIZE][BOARD_SIZE];
     SDL_Event *e;
+
+    SDL_Texture* white_pawn;
+    SDL_Texture* white_knight;
+    SDL_Texture* white_bishop;
+    SDL_Texture* white_rook;
+    SDL_Texture* white_king;
+    SDL_Texture* white_queen;
+    SDL_Texture* black_pawn;
+    SDL_Texture* black_knight;
+    SDL_Texture* black_bishop;
+    SDL_Texture* black_rook;
+    SDL_Texture* black_king;
+    SDL_Texture* black_queen;
 } GameState;
 
 #endif  /** __MAIN_H__ */

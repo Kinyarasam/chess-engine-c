@@ -16,20 +16,63 @@ void initializeBoard(GameState* state) {
     }
 }
 
+SDL_Texture* loadTexture(const char* file, SDL_Renderer* renderer) {
+    SDL_Surface* surface = SDL_LoadBMP(file);
+    if (!surface) {
+        fprintf(stderr, "Could not load image %s! SDL_Error: %s\n", file, SDL_GetError());
+        return NULL;
+    }
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_FreeSurface(surface);
+    return texture;
+}
+
+void loadPieceTextures(GameState* state) {
+    state->white_pawn = loadTexture("assets/white_pawn.bmp", state->renderer); // white_pawn
+    state->white_knight = loadTexture("assets/white_knight.bmp", state->renderer); // white_knight
+    state->white_bishop = loadTexture("assets/white_bishop.bmp", state->renderer); // white_bishop
+    state->white_rook = loadTexture("assets/white_rook.bmp", state->renderer); // white_rook
+    state->white_queen = loadTexture("assets/white_queen.bmp", state->renderer); // white_queen
+    state->white_king = loadTexture("assets/white_king.bmp", state->renderer); // white_king
+    state->black_pawn = loadTexture("assets/black_pawn.bmp", state->renderer); // black_pawn
+    state->black_knight = loadTexture("assets/black_knight.bmp", state->renderer); // black_knight
+    state->black_bishop = loadTexture("assets/black_bishop.bmp", state->renderer); // black_bishop
+    state->black_rook = loadTexture("assets/black_rook.bmp", state->renderer); // black_rook
+    state->black_queen = loadTexture("assets/black_queen.bmp", state->renderer); // black_queen
+    state->black_king = loadTexture("assets/black_king.bmp", state->renderer); // black_king
+}
+
 void initializePieces(GameState* state) {
     for (int col = 0; col < BOARD_SIZE; ++col) {
         state->board[1][col].piece.type = PAWN;
         state->board[1][col].piece.color = WHITE;
-        state->board[1][col].piece.type = PAWN;
-        state->board[1][col].piece.type = BLACK;
+        state->board[1][col].piece.texture = state->white_pawn;
+
+        state->board[6][col].piece.type = PAWN;
+        state->board[6][col].piece.color = BLACK;
+        state->board[6][col].piece.texture = state->black_pawn;
     }
 
     PieceType backRank[] = {ROOK, KNIGHT, BISHOP, QUEEN, KING, BISHOP, KNIGHT, ROOK};
+    SDL_Texture* whiteTextures[] = {
+        state->white_rook, state->white_knight, state->white_bishop,
+        state->white_queen, state->white_king, state->white_bishop,
+        state->white_knight, state->white_rook
+    };
+    SDL_Texture* blackTextures[] = {
+        state->black_rook, state->black_knight, state->black_bishop,
+        state->black_queen, state->black_king, state->black_bishop,
+        state->black_knight, state->black_rook
+    };
+
     for (int col = 0; col < BOARD_SIZE; ++col) {
         state->board[0][col].piece.type = backRank[col];
         state->board[0][col].piece.color = WHITE;
+        state->board[0][col].piece.texture = whiteTextures[col];
+
         state->board[7][col].piece.type = backRank[col];
         state->board[7][col].piece.color = BLACK;
+        state->board[7][col].piece.texture = blackTextures[col];
     }
 }
 
@@ -45,8 +88,16 @@ void drawBoard(GameState* state) {
             } else {
                 SDL_SetRenderDrawColor(state->renderer, darkSquare.r, darkSquare.g, darkSquare.b, darkSquare.a);
             }
-
             SDL_RenderFillRect(state->renderer, &state->board[row][col].rect);
+
+            if (state->board[row][col].piece.type != EMPTY) {
+                SDL_RenderCopy(
+                    state->renderer,
+                    state->board[row][col].piece.texture,
+                    NULL,
+                    &state->board[row][col].rect
+                );
+            }
         }
     }
 }
@@ -99,6 +150,8 @@ int main(void) {
     }
 
     state.gameIsActive = SDL_TRUE;
+
+    loadPieceTextures(&state);
     initializeBoard(&state);
     initializePieces(&state);
 
