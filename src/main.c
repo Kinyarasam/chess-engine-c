@@ -1,6 +1,5 @@
 #include "main.h"
 
-
 void initializeBoard(GameState* state) {
     for (int row = 0; row < BOARD_SIZE; ++row) {
         for (int col = 0; col < BOARD_SIZE; ++col) {
@@ -102,9 +101,64 @@ void drawBoard(GameState* state) {
     }
 }
 
+SDL_bool validateMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
+    if (toRow < 0 || toRow >= BOARD_SIZE || toCol < 0 || toCol >= BOARD_SIZE) return SDL_FALSE;
+
+    if (fromRow == toRow && fromCol == toCol) return SDL_FALSE;
+
+    /**
+     * TODO: Implement specific rules for each piece type.
+     */
+    return SDL_TRUE;
+}
+
+void movePiece(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
+    state->board[toRow][toCol].piece = state->board[fromRow][fromCol].piece;
+    state->board[toRow][toCol].occupied = OCCUPIED;
+
+    state->board[fromRow][fromCol].piece.type = EMPTY;
+    state->board[fromRow][fromCol].piece.color = NONE;
+    state->board[fromRow][fromCol].piece.texture = NULL;
+    state->board[fromRow][fromCol].occupied = NOT_OCCUPIED;
+}
+
+void handleMouseClick(GameState* state, int x, int y) {
+    int col = x / SQUARE_SIZE;
+    int row = y / SQUARE_SIZE;
+
+    if (state->playerState.selectedPiece) {
+        if (
+            validateMove(
+                state,
+                state->playerState.selectedRow,
+                state->playerState.selectedCol,
+                row, col)
+        ) {
+            movePiece(state, state->playerState.selectedRow, state->playerState.selectedCol, row, col);
+
+            state->playerState.selectedPiece = NULL;
+            state->playerState.pieceSelected = SDL_FALSE;
+        }
+        // state->playerState.pieceSelected = SDL_FALSE;
+    } else {
+        if (state->board[row][col].piece.type != EMPTY) {
+            state->playerState.selectedPiece = &state->board[row][col].piece;
+            state->playerState.selectedRow = row;
+            state->playerState.selectedCol = col;
+            state->playerState.pieceSelected = SDL_TRUE;
+        }
+    }
+}
+
 void handleEvents(GameState* state) {
     while (SDL_PollEvent(state->e)) {
-        if (state->e->type == SDL_QUIT) state->gameIsActive = SDL_FALSE;
+        if (state->e->type == SDL_QUIT) {
+            state->gameIsActive = SDL_FALSE;
+        } else if(state->e->type == SDL_MOUSEBUTTONDOWN) {
+            int x, y;
+            SDL_GetMouseState(&x, &y);
+            handleMouseClick(state, x, y);
+        }
     }
 
 }

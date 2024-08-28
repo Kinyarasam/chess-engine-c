@@ -36,11 +36,19 @@ typedef struct {
 } Cell;
 
 typedef struct {
+    Piece* selectedPiece;
+    int selectedRow;
+    int selectedCol;
+    SDL_bool pieceSelected;
+} PlayerState;
+
+typedef struct {
     SDL_Window *window;
     SDL_Renderer *renderer;
     SDL_bool gameIsActive;
     Cell board[BOARD_SIZE][BOARD_SIZE];
     SDL_Event *e;
+    PlayerState playerState;
 
     SDL_Texture* white_pawn;
     SDL_Texture* white_knight;
