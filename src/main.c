@@ -75,7 +75,6 @@ void initializePieces(GameState* state) {
     }
 }
 
-
 void drawBoard(GameState* state) {
     SDL_Color lightSquare = {240, 217, 181, 255};
     SDL_Color darkSquare = {181, 136, 99, 255};
@@ -101,10 +100,111 @@ void drawBoard(GameState* state) {
     }
 }
 
-SDL_bool validateMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
-    if (toRow < 0 || toRow >= BOARD_SIZE || toCol < 0 || toCol >= BOARD_SIZE) return SDL_FALSE;
+SDL_bool validatePawnMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
+    Piece* piece = &state->board[fromRow][fromCol].piece;
+    int direction = (piece->color == WHITE) ? 1 : -1;
+    int startRow = (piece->color == WHITE) ? 1 : 6;
 
+    if (fromCol == toCol) {
+        if (toRow == fromRow + direction && state->board[toRow][toCol].piece.type == EMPTY) {
+            return SDL_TRUE;
+        }
+
+        if (fromRow == startRow && toRow == fromRow + 2 * direction && state->board[toRow][toCol].piece.type == EMPTY && state->board[fromRow + direction][toCol].piece.type == EMPTY) {
+            return SDL_TRUE;
+        }
+    }
+
+    if (abs(fromCol - toCol) == 1 && toRow == fromRow + direction && state->board[toRow][toCol].piece.type != EMPTY && state->board[toRow][toCol].piece.color != piece->color) {
+        return SDL_TRUE;
+    }
+
+    return SDL_FALSE;
+}
+
+SDL_bool validateRookMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
+    if (fromRow != toRow && fromCol != toCol) return SDL_FALSE;
+    int stepRow = 0;
+    int stepCol = 0;
+
+    if (toRow - fromRow != 0) {
+        stepRow = (toRow - fromRow) / abs(toRow - fromRow);
+    }
+    if (toCol - fromCol != 0) {
+        stepCol = (toCol - fromCol) / abs(toCol - fromCol);
+    }
+
+    for (int i = fromRow + stepRow, j = fromCol + stepCol; i != toRow || j != toCol; i += stepRow, j+= stepCol) {
+        if (state->board[i][j].piece.type != EMPTY) {
+            return SDL_FALSE;
+        }
+    }
+
+    return SDL_TRUE;
+}
+
+SDL_bool validateKnightMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
+    int rowDiff = abs(fromRow - toRow);
+    int colDiff = abs(fromCol - toCol);
+
+    if ((rowDiff == 2 && colDiff == 1) || (rowDiff == 1 && colDiff == 2)) {
+        return SDL_TRUE;
+    }
+    return SDL_FALSE;
+}
+
+SDL_bool validateBishopMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
+    if (abs(fromRow - toRow) != abs(fromCol - toCol)) return SDL_FALSE;
+
+    int stepRow = (toRow - fromRow != 0) ? (toRow - fromRow) / abs(toRow - fromRow) : 0;
+    int stepCol = (toCol - fromCol != 0) ? (toCol - fromCol) / abs(toCol - fromCol) : 0;
+
+    for (int i = fromRow + stepRow, j = fromCol + stepCol; i != toRow || j != toCol; i += stepRow, j += stepCol) {
+        if (state->board[i][j].piece.type != EMPTY) return SDL_FALSE;
+    }
+    return SDL_TRUE;
+}
+
+SDL_bool validateQueenMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
+    return validateRookMove(state, fromRow, fromCol, toRow, toCol) || validateBishopMove(state, fromRow, fromCol, toRow, toCol);
+}
+
+SDL_bool validateKingMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
+    int rowDiff = abs(fromRow - toRow);
+    int colDiff = abs(fromCol - toCol);
+
+    if (rowDiff <= 1 && colDiff <= 1) {
+        return SDL_TRUE;
+    }
+    return SDL_FALSE;
+}
+
+SDL_bool validateMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
+    Piece* piece = &state->board[fromRow][fromCol].piece;
+
+    if (toRow < 0 || toRow >= BOARD_SIZE || toCol < 0 || toCol >= BOARD_SIZE) return SDL_FALSE;
     if (fromRow == toRow && fromCol == toCol) return SDL_FALSE;
+
+    if (state->board[toRow][toCol].piece.type != EMPTY && state->board[toRow][toCol].piece.color == piece->color) {
+        return SDL_FALSE;
+    }
+
+    switch(piece->type) {
+        case PAWN:
+            return validatePawnMove(state, fromRow, fromCol, toRow, toCol);
+        case ROOK:
+            return validateRookMove(state, fromRow, fromCol, toRow, toCol);
+        case KNIGHT:
+            return validateKnightMove(state, fromRow, fromCol, toRow, toCol);
+        case BISHOP:
+            return validateBishopMove(state, fromRow, fromCol, toRow, toCol);
+        case QUEEN:
+            return validateQueenMove(state, fromRow, fromCol, toRow, toCol);
+        case KING:
+            return validateKingMove(state, fromRow, fromCol, toRow, toCol);
+        default:
+            return SDL_FALSE;
+    }
 
     /**
      * TODO: Implement specific rules for each piece type.
@@ -136,9 +236,9 @@ void handleMouseClick(GameState* state, int x, int y) {
         ) {
             movePiece(state, state->playerState.selectedRow, state->playerState.selectedCol, row, col);
 
+        }
             state->playerState.selectedPiece = NULL;
             state->playerState.pieceSelected = SDL_FALSE;
-        }
         // state->playerState.pieceSelected = SDL_FALSE;
     } else {
         if (state->board[row][col].piece.type != EMPTY) {
