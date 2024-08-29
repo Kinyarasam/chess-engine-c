@@ -236,12 +236,15 @@ void handleMouseClick(GameState* state, int x, int y) {
         ) {
             movePiece(state, state->playerState.selectedRow, state->playerState.selectedCol, row, col);
 
-        }
+            state->currentTurn = (state->currentTurn == WHITE) ? BLACK : WHITE;
+
             state->playerState.selectedPiece = NULL;
             state->playerState.pieceSelected = SDL_FALSE;
+
+        }
         // state->playerState.pieceSelected = SDL_FALSE;
     } else {
-        if (state->board[row][col].piece.type != EMPTY) {
+        if (state->board[row][col].piece.type != EMPTY && state->board[row][col].piece.color == state->currentTurn) {
             state->playerState.selectedPiece = &state->board[row][col].piece;
             state->playerState.selectedRow = row;
             state->playerState.selectedCol = col;
@@ -304,6 +307,7 @@ int main(void) {
     }
 
     state.gameIsActive = SDL_TRUE;
+    state.currentTurn = WHITE;
 
     loadPieceTextures(&state);
     initializeBoard(&state);

@@ -50,6 +50,8 @@ typedef struct {
     SDL_Event *e;
     PlayerState playerState;
 
+    PieceColor currentTurn;
+
     SDL_Texture* white_pawn;
     SDL_Texture* white_knight;
     SDL_Texture* white_bishop;
