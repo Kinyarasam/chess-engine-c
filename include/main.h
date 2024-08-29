@@ -28,6 +28,13 @@ typedef struct {
 } Piece;
 
 typedef struct {
+    Piece movedPiece;
+    int fromRow, fromCol;
+    int toRow, toCol;
+    Piece capturedPiece;
+} Move;
+
+typedef struct {
     int row;
     int col;
     int occupied;
@@ -64,6 +71,11 @@ typedef struct {
     SDL_Texture* black_rook;
     SDL_Texture* black_king;
     SDL_Texture* black_queen;
+
+    Move undoStack[256];
+    Move redoStack[256];
+    int undoIndex;
+    int redoIndex;
 } GameState;
 
 void initializeBoard(GameState* state);

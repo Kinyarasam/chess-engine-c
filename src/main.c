@@ -81,6 +81,7 @@ void drawBoard(GameState* state) {
     SDL_Color selectedSquare = {255, 255, 0, 255};
     SDL_Color possibleMoveSquare = {173, 216, 230, 255};
     SDL_Color checkSquare = {255, 0, 0, 255};
+    SDL_Color capturableSquare = {255, 69, 0, 255};
 
     for (int row = 0; row < BOARD_SIZE; ++row) {
         for (int col = 0; col < BOARD_SIZE; ++col) {
@@ -91,7 +92,11 @@ void drawBoard(GameState* state) {
             }
 
             if (state->playerState.pieceSelected && validateMove(state, state->playerState.selectedRow, state->playerState.selectedCol, row, col)) {
-                squareColor = possibleMoveSquare;
+                if (state->board[row][col].piece.type != EMPTY && state->board[row][col].piece.color != state->playerState.selectedPiece->color) {
+                    squareColor = capturableSquare;
+                } else {
+                    squareColor = possibleMoveSquare;
+                }
             }
 
             if (state->board[row][col].piece.type == KING && isKingInCheck(state, state->board[row][col].piece.color)) {
@@ -249,6 +254,17 @@ SDL_bool validateMove(GameState* state, int fromRow, int fromCol, int toRow, int
 }
 
 void movePiece(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
+    Move move;
+    move.movedPiece = state->board[fromRow][fromCol].piece;
+    move.fromRow = fromRow;
+    move.fromCol = fromCol;
+    move.toRow = toRow;
+    move.toCol = toCol;
+    move.capturedPiece = state->board[toRow][toCol].piece;
+
+    state->undoStack[state->undoIndex++] = move;
+    state->redoIndex = 0;
+
     state->board[toRow][toCol].piece = state->board[fromRow][fromCol].piece;
     state->board[toRow][toCol].occupied = OCCUPIED;
 
@@ -256,6 +272,28 @@ void movePiece(GameState* state, int fromRow, int fromCol, int toRow, int toCol)
     state->board[fromRow][fromCol].piece.color = NONE;
     state->board[fromRow][fromCol].piece.texture = NULL;
     state->board[fromRow][fromCol].occupied = NOT_OCCUPIED;
+}
+
+void undoMove(GameState* state) {
+    if (state->undoIndex == 0) return;
+
+    Move move = state->undoStack[--state->undoIndex];
+    state->redoStack[state->redoIndex++] = move;
+
+    state->board[move.fromRow][move.fromCol].piece = move.movedPiece;
+    state->board[move.toRow][move.toCol].piece = move.capturedPiece;
+}
+
+void redoMove(GameState* state) {
+    if (state->redoIndex == 0) return;
+
+    Move move = state->redoStack[--state->redoIndex];
+    state->undoStack[state->undoIndex++] = move;
+
+    state->board[move.toRow][move.toCol].piece = move.movedPiece;
+    state->board[move.fromRow][move.fromCol].piece.type = EMPTY;
+    state->board[move.fromRow][move.fromCol].piece.color = NONE;
+    state->board[move.fromRow][move.fromCol].piece.texture = NULL;
 }
 
 SDL_bool isKingInCheck(GameState* state, PieceColor color) {
@@ -341,16 +379,17 @@ void handleMouseClick(GameState* state, int x, int y) {
             } else {
                 state->currentTurn = (state->currentTurn == WHITE) ? BLACK : WHITE;
 
-                if (isCheckMate(state, (state->currentTurn == WHITE) ? BLACK : WHITE)) {
-                    printf("Checkmate! %s is in check!\n", (state->currentTurn == WHITE) ? "Black" : "White");
+                if (isCheckMate(state, state->currentTurn)) {
+                    printf("Checkmate! %s is in check!\n", (state->currentTurn == WHITE) ? "White" : "Black");
                     state->gameIsActive = SDL_FALSE;
-                } else if (isKingInCheck(state, (state->currentTurn == WHITE) ? BLACK : WHITE)) {
-                    printf("Check! %s is in check!\n", (state->currentTurn == WHITE) ? "Black" : "White");
+                } else if (isKingInCheck(state, state->currentTurn)) {
+                    printf("Check! %s is in checkmate!\n", (state->currentTurn == WHITE) ? "White" : "Black");
                 }
+
             }
+        }
         state->playerState.selectedPiece = NULL;
         state->playerState.pieceSelected = SDL_FALSE;
-        }
     } else {
         if (state->board[row][col].piece.type != EMPTY && state->board[row][col].piece.color == state->currentTurn) {
             state->playerState.selectedPiece = &state->board[row][col].piece;
@@ -370,6 +409,14 @@ void handleEvents(GameState* state) {
             int x, y;
             SDL_GetMouseState(&x, &y);
             handleMouseClick(state, x, y);
+        } else if (state->e->type == SDL_KEYDOWN) {
+            if (state->e->key.keysym.sym == SDLK_z && (SDL_GetModState() & KMOD_CTRL)) {
+                // Ctrl + Z for undo
+                undoMove(state);
+            } else if (state->e->key.keysym.sym == SDLK_y && (SDL_GetModState() & KMOD_CTRL)) {
+                // Ctrl + y for undo
+                redoMove(state);
+            }
         }
     }
 
