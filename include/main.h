@@ -66,4 +66,27 @@ typedef struct {
     SDL_Texture* black_queen;
 } GameState;
 
+void initializeBoard(GameState* state);
+void initializePieces(GameState* state);
+void loadPieceTextures(GameState* state);
+
+SDL_Texture* loadTexture(const char* file, SDL_Renderer* renderer);
+
+void handleEvents(GameState* state);
+void handleMouseClick(GameState* state, int x, int y);
+void movePiece(GameState* state, int fromRow, int fromCol, int toRow, int toCol);
+
+SDL_bool isCheckMate(GameState* state, PieceColor color);
+SDL_bool isKingInCheck(GameState* state, PieceColor color);
+
+SDL_bool validateMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol);
+SDL_bool validateKingMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol);
+SDL_bool validateQueenMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol);
+SDL_bool validateBishopMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol);
+SDL_bool validateKnightMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol);
+SDL_bool validateRookMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol);
+SDL_bool validatePawnMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol);
+
+void drawBoard(GameState* state);
+
 #endif  /** __MAIN_H__ */
