@@ -1,42 +1,59 @@
 cmake_minimum_required(VERSION 3.10)
-project(chess)
+project(chess LANGUAGES C)
 
 set(CMAKE_C_STANDARD 99)
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wextra -pedantic -std=gnu89")
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
+# Project structure
 set(SRC_DIR src)
-set(BUILD_DIR build)
+set(INCLUDE_DIR include)
+set(ASSETS_DIR assets)
 set(BIN_DIR bin)
 
-file(GLOB SRC_FILES ${SRC_DIR}/*.c)
+# Source files
+file(GLOB SRC_FILES 
+    ${SRC_DIR}/*.c
+    ${SRC_DIR}/*.h
+)
+
+# Find SDL2 packages
+find_package(SDL2 REQUIRED)
+find_package(SDL2_ttf)
+
+# Create executable
 add_executable(chess ${SRC_FILES})
 
-find_package(SDL2 REQUIRED)
+# Include directories
+target_include_directories(chess PRIVATE
+    ${INCLUDE_DIR}
+    ${SDL2_INCLUDE_DIRS}
+    ${SDL2_TTF_INCLUDE_DIRS}
+)
 
-set(SDL2_TTF_INCLUDE_DIR "/usr/local/Cellar/sdl2_ttf/2.22.0/include/SDL2")
-set(SDL2_TTF_LIBRARY "/usr/local/Cellar/sdl2_ttf/2.22.0/lib/libSDL2_ttf.dylib")
+# Link libraries
+target_link_libraries(chess PRIVATE
+    ${SDL2_LIBRARIES}
+)
 
-include(FindPackageHandleStandardArgs)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(SDL_TTF DEFAULT_MSG SDL2_TTF_LIBRARY SDL2_TTF_INCLUDE_DIR)
-
-if(SDL_TTF_FOUND)
-    set(SDL_TTF_LIBRARIES ${SDL2_TTF_LIBRARY})
-    set(SDL_TTF_INCLUDE_DIRS ${SDL2_TTF_INCLUDE_DIR})
+if(SDL2_TTF_FOUND)
+    target_link_libraries(chess PRIVATE ${SDL2_TTF_LIBRARIES})
 endif()
 
-include_directories(include ${SDL2_INCLUDE_DIRS} ${SDL_TTF_INCLUDE_DIRS})
-
-target_link_libraries(chess /usr/local/Cellar/sdl2/2.30.5/lib/libSDL2.dylib /usr/local/Cellar/sdl2_ttf/2.22.0/lib/libSDL2_ttf.dylib)
-
+# Copy assets directory to build directory
 add_custom_command(TARGET chess POST_BUILD
-                   COMMAND ${CMAKE_COMMAND} -E copy_directory
-                   ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:chess>/assets)
-
-set_target_properties(chess PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${BIN_DIR}"
-    ARCHIVE_OUTPUT_DIRECTORY "${BUILD_DIR}"
-    LIBRARY_OUTPUT_DIRECTORY "${BUILD_DIR}"
-    INSTALL_RPATH_USE_LINK_PATH TRUE
-    BUILD_RPATH /usr/local/Cellar/sdl2/2.30.5/lib
-    INSTALL_RPATH /usr/local/Cellar/sdl2/2.30.5/lib
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/${ASSETS_DIR} 
+    $<TARGET_FILE_DIR:chess>/${ASSETS_DIR}
 )
+
+# Output directories
+set_target_properties(chess PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR}
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+# Installation (optional)
+install(TARGETS chess DESTINATION bin)
+install(DIRECTORY ${ASSETS_DIR} DESTINATION .)

@@ -25,6 +25,7 @@ typedef struct {
     PieceType type;
     PieceColor color;
     SDL_Texture* texture;
+    SDL_bool hasMoved;
 } Piece;
 
 typedef struct {
@@ -76,6 +77,15 @@ typedef struct {
     Move redoStack[256];
     int undoIndex;
     int redoIndex;
+
+    int hoverRow;
+    int hoverCol;
+    SDL_bool isHovering;
+
+    SDL_bool whiteCanCastleKingside;
+    SDL_bool whiteCanCastleQueenside;
+    SDL_bool blackCanCastleKingside;
+    SDL_bool blackCanCastleQueenside;
 } GameState;
 
 void initializeBoard(GameState* state);

@@ -46,10 +46,12 @@ void initializePieces(GameState* state) {
         state->board[1][col].piece.type = PAWN;
         state->board[1][col].piece.color = WHITE;
         state->board[1][col].piece.texture = state->white_pawn;
+        state->board[1][col].piece.hasMoved = SDL_FALSE;
 
         state->board[6][col].piece.type = PAWN;
         state->board[6][col].piece.color = BLACK;
         state->board[6][col].piece.texture = state->black_pawn;
+        state->board[6][col].piece.hasMoved = SDL_FALSE;
     }
 
     PieceType backRank[] = {ROOK, KNIGHT, BISHOP, QUEEN, KING, BISHOP, KNIGHT, ROOK};
@@ -68,11 +70,18 @@ void initializePieces(GameState* state) {
         state->board[0][col].piece.type = backRank[col];
         state->board[0][col].piece.color = WHITE;
         state->board[0][col].piece.texture = whiteTextures[col];
+        state->board[0][col].piece.hasMoved = SDL_FALSE;
 
         state->board[7][col].piece.type = backRank[col];
         state->board[7][col].piece.color = BLACK;
         state->board[7][col].piece.texture = blackTextures[col];
+        state->board[7][col].piece.hasMoved = SDL_FALSE;
     }
+
+    state->blackCanCastleKingside = SDL_TRUE;
+    state->blackCanCastleQueenside = SDL_TRUE;
+    state->whiteCanCastleKingside = SDL_TRUE;
+    state->whiteCanCastleQueenside = SDL_TRUE;
 }
 
 void drawBoard(GameState* state) {
@@ -82,10 +91,16 @@ void drawBoard(GameState* state) {
     SDL_Color possibleMoveSquare = {173, 216, 230, 255};
     SDL_Color checkSquare = {255, 0, 0, 255};
     SDL_Color capturableSquare = {255, 69, 0, 255};
+    SDL_Color hoverSquare = {200, 200, 100, 255};
+    SDL_Color specialMove = {200, 200, 0, 255};
 
     for (int row = 0; row < BOARD_SIZE; ++row) {
         for (int col = 0; col < BOARD_SIZE; ++col) {
             SDL_Color squareColor = ((row + col) % 2 == 0) ? lightSquare : darkSquare;
+
+            if (state->isHovering && state->hoverRow == row && state->hoverCol == col) {
+                squareColor = hoverSquare;
+            }
 
             if (state->playerState.pieceSelected && state->playerState.selectedRow == row && state->playerState.selectedCol == col) {
                 squareColor = selectedSquare;
@@ -97,6 +112,13 @@ void drawBoard(GameState* state) {
                 } else {
                     squareColor = possibleMoveSquare;
                 }
+            }
+
+            if (state->playerState.pieceSelected && state->playerState.selectedPiece->type == KING &&
+                abs(state->playerState.selectedCol - col) == 2 &&
+                validateMove(state, state->playerState.selectedRow, state->playerState.selectedCol, row, col)
+            ) {
+                squareColor = specialMove;
             }
 
             if (state->board[row][col].piece.type == KING && isKingInCheck(state, state->board[row][col].piece.color)) {
@@ -118,6 +140,20 @@ void drawBoard(GameState* state) {
             }
         }
     }
+}
+
+SDL_bool isSquareUnderAttack(GameState* state, int row, int col, PieceColor color) {
+    for (int r = 0; r < BOARD_SIZE; r++) {
+        for (int c = 0; c < BOARD_SIZE; c++) {
+            Piece* piece = &state->board[r][c].piece;
+            if (piece->type != EMPTY && piece->color != color) {
+                if (validateMove(state, r, c, row, col)) {
+                    return SDL_TRUE;
+                }
+            }
+        }
+    }
+    return SDL_FALSE;
 }
 
 SDL_bool validatePawnMove(GameState* state, int fromRow, int fromCol, int toRow, int toCol) {
@@ -193,9 +229,50 @@ SDL_bool validateKingMove(GameState* state, int fromRow, int fromCol, int toRow,
     int rowDiff = abs(fromRow - toRow);
     int colDiff = abs(fromCol - toCol);
 
+    // Normal King move
     if (rowDiff <= 1 && colDiff <= 1) {
         return SDL_TRUE;
     }
+
+    // Castling move
+    if (rowDiff == 0 && colDiff == 2) {
+        Piece* king = &state->board[fromRow][fromCol].piece;
+        int direction = (toCol > fromCol) ? 1 : -1;
+        int rookCol = (direction == 1) ? 7 : 0;
+
+        // Check king and rook haven't moved
+        if (king->hasMoved) return SDL_FALSE;
+        Piece* rook = &state->board[fromRow][rookCol].piece;
+        if (rook->type != ROOK || rook->hasMoved) return SDL_FALSE;
+
+        // Check empty squares between
+        for (int col = fromCol + direction; col != rookCol; col += direction) {
+            if (state->board[fromRow][col].piece.type != EMPTY) {
+                return SDL_FALSE;
+            }
+        }
+
+        // King not in check
+        if (isKingInCheck(state, king->color)) return SDL_FALSE;
+
+        // Check squares king moves through
+        for (int col = fromCol; col != toCol; col += direction) {
+            if (isSquareUnderAttack(state, fromRow, col, king->color)) {
+                return SDL_FALSE;
+            }
+        }
+
+        // Check castling rights
+        if (king->color == WHITE) {
+            if (direction == 1 && !state->whiteCanCastleKingside) return SDL_FALSE;
+            if (direction == -1 && !state->whiteCanCastleQueenside) return SDL_FALSE;
+        } else {
+            if (direction == 1 && !state->blackCanCastleKingside) return SDL_FALSE;
+            if (direction == -1 && !state->blackCanCastleQueenside) return SDL_FALSE;
+        }
+        return SDL_TRUE;
+    }
+
     return SDL_FALSE;
 }
 
@@ -262,6 +339,28 @@ void movePiece(GameState* state, int fromRow, int fromCol, int toRow, int toCol)
     move.toCol = toCol;
     move.capturedPiece = state->board[toRow][toCol].piece;
 
+    // Mark the piece as moved
+    state->board[fromRow][fromCol].piece.hasMoved = SDL_TRUE;
+
+    // Update castling rights if king or rook moves
+    if (move.movedPiece.type == KING) {
+        if (move.movedPiece.color == WHITE) {
+            state->whiteCanCastleKingside = SDL_FALSE;
+            state->whiteCanCastleQueenside = SDL_FALSE;
+        } else {
+            state->blackCanCastleKingside = SDL_FALSE;
+            state->blackCanCastleQueenside = SDL_FALSE;
+        }
+    } else if (move.movedPiece.type == ROOK) {
+        if (move.movedPiece.color == WHITE) {
+            if (fromCol == 0) state->whiteCanCastleQueenside = SDL_FALSE;
+            if (fromCol == 7) state->whiteCanCastleKingside = SDL_FALSE;
+        } else {
+            if (fromCol == 0) state->blackCanCastleQueenside = SDL_FALSE;
+            if (fromCol == 7) state->blackCanCastleKingside = SDL_FALSE;
+        }
+    }
+
     state->undoStack[state->undoIndex++] = move;
     state->redoIndex = 0;
 
@@ -280,7 +379,28 @@ void undoMove(GameState* state) {
     Move move = state->undoStack[--state->undoIndex];
     state->redoStack[state->redoIndex++] = move;
 
+    // Check if this was a castling move
+    if (move.movedPiece.type == KING && abs(move.fromCol - move.toCol) == 2) {
+        int rookFromCol = (move.toCol > move.fromCol) ? move.toCol - 1 : move.toCol + 1;
+        int rookToCol = (move.toCol > move.fromCol) ? 7 : 0;
+
+        for (int i = state->undoIndex - 1; i >= 0; i--) {
+            if (state->undoStack[i].fromRow == move.toRow &&
+                state->undoStack[i].fromCol == rookToCol &&
+                state->undoStack[i].toRow == move.toRow &&
+                state->undoStack[i].toCol == rookFromCol)
+            {
+                Move rookMove = state->undoStack[i];
+                state->board[rookMove.fromRow][rookMove.fromCol].piece = rookMove.movedPiece;
+                state->board[rookMove.fromRow][rookMove.fromCol].piece.hasMoved = SDL_FALSE; // Reset hasMoved
+                state->board[rookMove.toRow][rookMove.toCol].piece = rookMove.capturedPiece;
+                break;
+            }
+        }
+    }
+
     state->board[move.fromRow][move.fromCol].piece = move.movedPiece;
+    state->board[move.fromRow][move.fromCol].piece.hasMoved = SDL_FALSE; // Reset hasMoved
     state->board[move.toRow][move.toCol].piece = move.capturedPiece;
 }
 
@@ -357,35 +477,42 @@ SDL_bool isCheckMate(GameState* state, PieceColor color) {
     return SDL_TRUE;
 }
 
-
 void handleMouseClick(GameState* state, int x, int y) {
     int col = x / SQUARE_SIZE;
     int row = y / SQUARE_SIZE;
 
     if (state->playerState.selectedPiece) {
-        if (
-            validateMove(
-                state,
-                state->playerState.selectedRow,
-                state->playerState.selectedCol,
-                row, col)
-        ) {
+        if (validateMove(state, state->playerState.selectedRow, state->playerState.selectedCol, row, col)) {
+            Piece* selectedPiece = state->playerState.selectedPiece;
+            SDL_bool isCastling = (selectedPiece->type == KING && abs(state->playerState.selectedCol - col) == 2);
+            
+            // Handle castling - move rook first
+            if (isCastling) {
+                int rookFromCol = (col > state->playerState.selectedCol) ? 7 : 0;
+                int rookToCol = (col > state->playerState.selectedCol) ? col - 1 : col + 1;
+                movePiece(state, row, rookFromCol, row, rookToCol);
+            }
+
+            // Then move the king/piece
             Piece tempPiece = state->board[row][col].piece;
             movePiece(state, state->playerState.selectedRow, state->playerState.selectedCol, row, col);
 
+            // Validate the move didn't leave king in check
             if (isKingInCheck(state, state->currentTurn)) {
-                state->board[state->playerState.selectedRow][state->playerState.selectedCol].piece = state->board[row][col].piece;
-                state->board[row][col].piece = tempPiece;
+                // Undo both moves if castling
+                undoMove(state); // undo king move
+                if (isCastling) {
+                    undoMove(state); // undo rook move
+                }
             } else {
                 state->currentTurn = (state->currentTurn == WHITE) ? BLACK : WHITE;
-
+                
                 if (isCheckMate(state, state->currentTurn)) {
-                    printf("Checkmate! %s is in check!\n", (state->currentTurn == WHITE) ? "White" : "Black");
+                    printf("Checkmate! %s wins!\n", (state->currentTurn == WHITE) ? "Black" : "White");
                     state->gameIsActive = SDL_FALSE;
                 } else if (isKingInCheck(state, state->currentTurn)) {
-                    printf("Check! %s is in checkmate!\n", (state->currentTurn == WHITE) ? "White" : "Black");
+                    printf("Check!\n");
                 }
-
             }
         }
         state->playerState.selectedPiece = NULL;
@@ -400,11 +527,18 @@ void handleMouseClick(GameState* state, int x, int y) {
     }
 }
 
-
 void handleEvents(GameState* state) {
     while (SDL_PollEvent(state->e)) {
         if (state->e->type == SDL_QUIT) {
             state->gameIsActive = SDL_FALSE;
+        } else if (state->e->type == SDL_MOUSEMOTION) {
+            // Handle mouse movement for hover effect
+            int x, y;
+            SDL_GetMouseState(&x, &y);
+            state->hoverCol = x / SQUARE_SIZE;
+            state->hoverRow = y / SQUARE_SIZE;
+            state->isHovering = (state->hoverRow >= 0 && state->hoverRow < BOARD_SIZE &&
+                               state->hoverCol >= 0 && state->hoverCol < BOARD_SIZE);
         } else if(state->e->type == SDL_MOUSEBUTTONDOWN) {
             int x, y;
             SDL_GetMouseState(&x, &y);
@@ -464,6 +598,10 @@ int main(void) {
 
     state.gameIsActive = SDL_TRUE;
     state.currentTurn = WHITE;
+
+    state.hoverRow = -1;
+    state.hoverCol = -1;
+    state.isHovering = SDL_FALSE;
 
     loadPieceTextures(&state);
     initializeBoard(&state);
